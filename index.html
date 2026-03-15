@@ -25,7 +25,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   backdrop-filter: blur(8px);
 }
 .info-panel h3 { margin-bottom: 4px; }
-.info-panel .count { color: #4ade80; font-weight: bold; }
 .controls {
   position: absolute; top: 10px; right: 10px; z-index: 1000;
   display: flex; flex-direction: column; gap: 6px;
@@ -40,7 +39,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .controls button.active { background: rgba(59,130,246,0.8); }
 .station-popup { font-size: 13px; line-height: 1.5; }
 .station-popup b { color: #2563eb; }
-.elev-label { font-size: 11px; color: #aaa; }
 </style>
 </head>
 <body>
@@ -48,13 +46,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
 <div class="info-panel">
   <h3>🚲 서울 고도 × 따릉이</h3>
-  <div>대여소 <span class="count" id="station-count">0</span>개 로딩 중...</div>
+  <div id="info-text">로딩 중...</div>
 </div>
 
 <div class="controls">
-  <button id="btn-elevation" class="active" onclick="toggleElevation()">🏔 고도 레이어</button>
+  <button id="btn-topo" class="active" onclick="toggleTopo()">🏔 지형</button>
   <button id="btn-stations" class="active" onclick="toggleStations()">🚲 따릉이</button>
-  <button id="btn-heatmap" onclick="toggleHeatmap()">🔥 고도 히트맵</button>
 </div>
 
 <div class="legend">
@@ -65,221 +62,66 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   <div class="legend-row"><div class="legend-color" style="background:#f9a825"></div> 80–150m</div>
   <div class="legend-row"><div class="legend-color" style="background:#e65100"></div> 150–300m</div>
   <div class="legend-row"><div class="legend-color" style="background:#b71c1c"></div> 300m+</div>
-  <div style="margin-top:8px; border-top:1px solid #555; padding-top:6px;">
-    <div class="legend-row">🟢 따릉이 대여소</div>
-  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="stations.js"></script>
 <script>
-// Seoul center
-const SEOUL_CENTER = [37.5045, 127.0489]; // 선정릉역
+// STATIONS = [[lat, lng, name, racks, elevation], ...]
 const map = L.map('map', {
-  center: SEOUL_CENTER,
+  center: [37.5045, 127.0489], // 선정릉역
   zoom: 15,
-  zoomControl: false
+  zoomControl: false,
+  preferCanvas: true  // Canvas renderer for performance
 });
-
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-// Base tile (dark)
 const baseTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; CartoDB &copy; OSM',
-  maxZoom: 19
+  attribution: '&copy; CartoDB &copy; OSM', maxZoom: 19
 }).addTo(map);
 
-// Elevation tile layer using OpenTopoMap (free, no API key)
-const elevationTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenTopoMap &copy; OSM',
-  maxZoom: 17,
-  opacity: 0.45
+const topoTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenTopoMap', maxZoom: 17, opacity: 0.45
 }).addTo(map);
 
-// Station markers layer
-const stationLayer = L.layerGroup().addTo(map);
-// Heatmap canvas layer
-let heatmapLayer = null;
-let stationsData = [];
-
-// Elevation color
-function elevColor(elev) {
-  if (elev < 20) return '#1a237e';
-  if (elev < 40) return '#1565c0';
-  if (elev < 80) return '#43a047';
-  if (elev < 150) return '#f9a825';
-  if (elev < 300) return '#e65100';
+function elevColor(e) {
+  if (e < 20) return '#1a237e';
+  if (e < 40) return '#1565c0';
+  if (e < 80) return '#43a047';
+  if (e < 150) return '#f9a825';
+  if (e < 300) return '#e65100';
   return '#b71c1c';
 }
 
-// Fetch elevation for a batch of coordinates using Open-Meteo
-async function getElevations(coords) {
-  const lats = coords.map(c => c[0]).join(',');
-  const lngs = coords.map(c => c[1]).join(',');
-  const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data.elevation || [];
+// Render all stations instantly using canvas renderer
+const stationLayer = L.layerGroup().addTo(map);
+
+for (const s of STATIONS) {
+  const [lat, lng, name, racks, elev] = s;
+  L.circleMarker([lat, lng], {
+    radius: 5,
+    fillColor: elevColor(elev),
+    color: '#fff',
+    weight: 0.8,
+    opacity: 0.7,
+    fillOpacity: 0.85
+  }).bindPopup(
+    `<div class="station-popup"><b>${name}</b><br>거치대: ${racks}개<br>🏔 고도: ${elev}m</div>`
+  ).addTo(stationLayer);
 }
 
-// Load stations from static data (STATIONS = [[lat, lng, name, racks], ...])
-async function loadStations() {
-  const stations = STATIONS.map(s => ({
-    lat: s[0], lng: s[1], name: s[2], racks: s[3], bikes: 0
-  }));
-  
-  stationsData = stations;
-  document.getElementById('station-count').textContent = stations.length;
-  document.querySelector('.info-panel div').innerHTML = 
-    `대여소 <span class="count">${stations.length}</span>개 · 고도 조회 중...`;
+document.getElementById('info-text').textContent = `대여소 ${STATIONS.length}개 · 고도 포함`;
 
-  // Get elevations in batches of 100
-  const BATCH = 100;
-  for (let i = 0; i < stations.length; i += BATCH) {
-    const batch = stations.slice(i, i + BATCH);
-    const coords = batch.map(s => [s.lat, s.lng]);
-    try {
-      const elevs = await getElevations(coords);
-      for (let j = 0; j < batch.length; j++) {
-        batch[j].elevation = elevs[j] || 0;
-      }
-    } catch(e) {
-      console.warn(`Elevation batch ${i} failed`, e);
-      batch.forEach(s => s.elevation = 0);
-    }
-    // Update progress
-    const done = Math.min(i + BATCH, stations.length);
-    document.querySelector('.info-panel div').innerHTML = 
-      `대여소 <span class="count">${stations.length}</span>개 · 고도 ${done}/${stations.length}`;
-  }
-
-  // Render markers
-  renderStations();
-  
-  document.querySelector('.info-panel div').innerHTML = 
-    `대여소 <span class="count">${stations.length}</span>개 · 고도 데이터 완료 ✅`;
+function toggleTopo() {
+  const btn = document.getElementById('btn-topo');
+  if (map.hasLayer(topoTile)) { map.removeLayer(topoTile); btn.classList.remove('active'); }
+  else { topoTile.addTo(map); btn.classList.add('active'); }
 }
-
-function renderStations() {
-  stationLayer.clearLayers();
-  stationsData.forEach(s => {
-    const elev = s.elevation || 0;
-    const color = elevColor(elev);
-    const circle = L.circleMarker([s.lat, s.lng], {
-      radius: 5,
-      fillColor: color,
-      color: '#fff',
-      weight: 1,
-      opacity: 0.8,
-      fillOpacity: 0.85
-    });
-    circle.bindPopup(`
-      <div class="station-popup">
-        <b>${s.name}</b><br>
-        🚲 자전거: ${s.bikes}대 / 거치대: ${s.racks}개<br>
-        <span class="elev-label">🏔 고도: ${elev.toFixed(1)}m</span>
-      </div>
-    `);
-    stationLayer.addLayer(circle);
-  });
-}
-
-// Heatmap using canvas overlay
-function createHeatmap() {
-  if (heatmapLayer) {
-    map.removeLayer(heatmapLayer);
-    heatmapLayer = null;
-    return null;
-  }
-  
-  const canvas = L.DomUtil.create('canvas');
-  const overlay = L.imageOverlay('', map.getBounds(), { opacity: 0.5 });
-  
-  // Simple grid-based elevation heatmap
-  const HeatmapCanvasLayer = L.Layer.extend({
-    onAdd(map) {
-      this._map = map;
-      this._canvas = L.DomUtil.create('canvas', 'leaflet-heatmap-layer');
-      const pane = map.getPane('overlayPane');
-      pane.appendChild(this._canvas);
-      this._canvas.style.position = 'absolute';
-      this._canvas.style.pointerEvents = 'none';
-      map.on('moveend zoomend resize', this._redraw, this);
-      this._redraw();
-    },
-    onRemove(map) {
-      map.off('moveend zoomend resize', this._redraw, this);
-      this._canvas.remove();
-    },
-    _redraw() {
-      const size = this._map.getSize();
-      this._canvas.width = size.x;
-      this._canvas.height = size.y;
-      const topLeft = this._map.containerPointToLayerPoint([0, 0]);
-      L.DomUtil.setPosition(this._canvas, topLeft);
-      
-      const ctx = this._canvas.getContext('2d');
-      ctx.clearRect(0, 0, size.x, size.y);
-      
-      stationsData.forEach(s => {
-        const pt = this._map.latLngToContainerPoint([s.lat, s.lng]);
-        const elev = s.elevation || 0;
-        const color = elevColor(elev);
-        const radius = Math.max(15, 40 - this._map.getZoom() * 2);
-        
-        const gradient = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
-        gradient.addColorStop(0, color + 'aa');
-        gradient.addColorStop(1, color + '00');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-  });
-  
-  heatmapLayer = new HeatmapCanvasLayer();
-  heatmapLayer.addTo(map);
-  return heatmapLayer;
-}
-
-// Toggle controls
-function toggleElevation() {
-  const btn = document.getElementById('btn-elevation');
-  if (map.hasLayer(elevationTile)) {
-    map.removeLayer(elevationTile);
-    btn.classList.remove('active');
-  } else {
-    elevationTile.addTo(map);
-    btn.classList.add('active');
-  }
-}
-
 function toggleStations() {
   const btn = document.getElementById('btn-stations');
-  if (map.hasLayer(stationLayer)) {
-    map.removeLayer(stationLayer);
-    btn.classList.remove('active');
-  } else {
-    stationLayer.addTo(map);
-    btn.classList.add('active');
-  }
+  if (map.hasLayer(stationLayer)) { map.removeLayer(stationLayer); btn.classList.remove('active'); }
+  else { stationLayer.addTo(map); btn.classList.add('active'); }
 }
-
-function toggleHeatmap() {
-  const btn = document.getElementById('btn-heatmap');
-  if (heatmapLayer) {
-    map.removeLayer(heatmapLayer);
-    heatmapLayer = null;
-    btn.classList.remove('active');
-  } else {
-    createHeatmap();
-    btn.classList.add('active');
-  }
-}
-
-// Init
-loadStations();
 </script>
 </body>
 </html>
