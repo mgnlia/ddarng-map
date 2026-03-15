@@ -112,6 +112,28 @@ for (const s of STATIONS) {
 
 document.getElementById('info-text').textContent = `대여소 ${STATIONS.length}개 · 고도 포함`;
 
+// 현재 위치 표시
+if (navigator.geolocation) {
+  navigator.geolocation.watchPosition(pos => {
+    const {latitude: lat, longitude: lng, accuracy} = pos.coords;
+    if (!window._locMarker) {
+      window._locMarker = L.circleMarker([lat, lng], {
+        radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1
+      }).addTo(map).bindPopup('📍 현재 위치');
+      window._locRadius = L.circle([lat, lng], {
+        radius: accuracy, color: '#3b82f6', fillColor: '#3b82f6',
+        fillOpacity: 0.1, weight: 1, opacity: 0.3
+      }).addTo(map);
+      map.setView([lat, lng], 15);
+    } else {
+      window._locMarker.setLatLng([lat, lng]);
+      window._locRadius.setLatLng([lat, lng]).setRadius(accuracy);
+    }
+  }, err => console.warn('Geolocation error:', err), {
+    enableHighAccuracy: true, maximumAge: 10000, timeout: 10000
+  });
+}
+
 function toggleTopo() {
   const btn = document.getElementById('btn-topo');
   if (map.hasLayer(topoTile)) { map.removeLayer(topoTile); btn.classList.remove('active'); }
