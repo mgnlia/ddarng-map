@@ -100,19 +100,51 @@ const stationLayer = L.layerGroup().addTo(map);
 
 for (const s of STATIONS) {
   const [lat, lng, name, racks, elev] = s;
-  L.circleMarker([lat, lng], {
+  const marker = L.circleMarker([lat, lng], {
     radius: 5,
     fillColor: elevColor(elev),
     color: '#fff',
     weight: 0.8,
     opacity: 0.7,
     fillOpacity: 0.85
-  }).bindPopup(
-    `<div class="station-popup"><b>${name}</b><br>거치대: ${racks}개<br>🏔 고도: ${elev}m</div>`
-  ).addTo(stationLayer);
+  });
+  marker._stName = name;
+  marker._racks = racks;
+  marker._elev = elev;
+  marker._bikes = null;
+  marker.bindPopup(`<div class="station-popup"><b>${name}</b><br>거치대: ${racks}개<br>🏔 고도: ${elev}m<br>🚲 자전거: 로딩 중...</div>`);
+  marker.addTo(stationLayer);
 }
 
 document.getElementById('info-text').textContent = `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개`;
+
+// Fetch real-time bike availability
+fetch('/api/bikes').then(r => r.json()).then(bikeData => {
+  stationLayer.eachLayer(m => {
+    if (!m._stName) return;
+    const info = bikeData[m._stName];
+    const bikes = info ? info.bikes : '?';
+    m._bikes = bikes;
+    const pct = info ? (info.bikes / Math.max(info.racks, 1)) : 0;
+    // Update color based on availability
+    if (info && info.bikes === 0) {
+      m.setStyle({ fillColor: '#ef4444', fillOpacity: 1 }); // red = empty
+    } else if (info && pct < 0.3) {
+      m.setStyle({ fillColor: '#f97316', fillOpacity: 0.9 }); // orange = low
+    }
+    m.setPopupContent(
+      `<div class="station-popup"><b>${m._stName}</b><br>` +
+      `🚲 <b style="font-size:15px;color:${bikes===0?'#ef4444':'#22c55e'}">${bikes}대</b> / 거치대 ${m._racks}개<br>` +
+      `🏔 고도: ${m._elev}m</div>`
+    );
+  });
+  document.getElementById('info-text').innerHTML =
+    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#4ade80">실시간 ✅</span>`;
+}).catch(e => {
+  console.warn('Bike API failed:', e);
+  document.getElementById('info-text').innerHTML =
+    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#f87171">오프라인</span>`;
+});
 
 // Subway layer
 const subwayLayer = L.layerGroup().addTo(map);
