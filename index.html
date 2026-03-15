@@ -134,6 +134,8 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
 .elev-header h4{font-size:13px;font-weight:700}
 .elev-stats{display:flex;gap:16px;font-size:11px;color:var(--text-dim)}
 .elev-stats b{color:var(--text);font-weight:700}
+.grade-legend{display:flex;gap:2px;margin-top:8px;height:8px;border-radius:4px;overflow:hidden}
+.grade-legend div{flex:1;}
 #elev-canvas{width:100%;height:120px;border-radius:8px}
 
 /* Route marker */
@@ -197,6 +199,18 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
     <div class="elev-stats" id="elev-stats"></div>
   </div>
   <canvas id="elev-canvas"></canvas>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+    <div class="grade-legend" style="flex:1;max-width:200px">
+      <div style="background:#3b82f6" title="급내리막"></div>
+      <div style="background:#06b6d4" title="내리막"></div>
+      <div style="background:#22c55e" title="평지"></div>
+      <div style="background:#facc15" title="완만"></div>
+      <div style="background:#f97316" title="오르막"></div>
+      <div style="background:#ea580c" title="가파름"></div>
+      <div style="background:#dc2626" title="급경사"></div>
+    </div>
+    <span style="font-size:10px;color:var(--text-dim)">🟢평지 → 🔴급경사</span>
+  </div>
 </div>
 
 <div class="glass legend">
@@ -418,23 +432,15 @@ async function computeRoute(a,b){
     const dist=(route.distance/1000).toFixed(1);
     const mins=Math.round(route.duration/60);
 
-    // Draw route line
     const latlngs=coords.map(c=>[c[1],c[0]]);
-    if(routeLine)map.removeLayer(routeLine);
-    routeLine=L.polyline(latlngs,{color:'#3b82f6',weight:5,opacity:.8,
-      dashArray:null,lineCap:'round',lineJoin:'round'}).addTo(map);
 
-    // Add shadow line
-    L.polyline(latlngs,{color:'#000',weight:8,opacity:.2}).addTo(map);
-    routeMarkers.push(L.polyline(latlngs,{color:'#000',weight:8,opacity:.2}));
-
-    map.fitBounds(routeLine.getBounds(),{padding:[80,80]});
-
-    // Sample ~40 points for elevation
-    const step=Math.max(1,Math.floor(coords.length/40));
-    const samples=[];
-    for(let i=0;i<coords.length;i+=step) samples.push(coords[i]);
-    if(samples[samples.length-1]!==coords[coords.length-1]) samples.push(coords[coords.length-1]);
+    // Sample points for elevation (every ~20m or ~80 points)
+    const step=Math.max(1,Math.floor(coords.length/80));
+    const samples=[];const sampleIdx=[];
+    for(let i=0;i<coords.length;i+=step){samples.push(coords[i]);sampleIdx.push(i)}
+    if(sampleIdx[sampleIdx.length-1]!==coords.length-1){
+      samples.push(coords[coords.length-1]);sampleIdx.push(coords.length-1);
+    }
 
     // Distances along route for x-axis
     const dists=[0];
@@ -453,21 +459,56 @@ async function computeRoute(a,b){
     const elevData=await elevRes.json();
     const elevs=elevData.elevation||samples.map(()=>0);
 
-    // Calculate stats
+    // Calculate stats + per-segment gradients
     let totalUp=0,totalDown=0;
+    const gradients=[];
     for(let i=1;i<elevs.length;i++){
       const diff=elevs[i]-elevs[i-1];
       if(diff>0)totalUp+=diff;else totalDown+=Math.abs(diff);
+      const segDist=dists[i]-dists[i-1];
+      gradients.push(segDist>0?diff/segDist*100:0); // % grade
     }
     const maxElev=Math.max(...elevs), minElev=Math.min(...elevs);
 
+    // Draw gradient-colored route line
+    if(routeLine){map.removeLayer(routeLine);routeLine=null}
+    const routeGroup=L.layerGroup();
+    // Shadow
+    const shadow=L.polyline(latlngs,{color:'#000',weight:8,opacity:.12});
+    shadow.addTo(routeGroup);
+
+    function gradeColor(g){
+      if(g>8)return'#dc2626';    // steep uphill - red
+      if(g>5)return'#ea580c';    // moderate uphill - dark orange
+      if(g>2)return'#f97316';    // mild uphill - orange
+      if(g>0)return'#facc15';    // slight uphill - yellow
+      if(g>-2)return'#22c55e';   // flat/slight down - green
+      if(g>-5)return'#06b6d4';   // downhill - cyan
+      return'#3b82f6';           // steep downhill - blue
+    }
+
+    for(let i=0;i<gradients.length;i++){
+      const fromIdx=sampleIdx[i], toIdx=sampleIdx[i+1];
+      const seg=latlngs.slice(fromIdx,toIdx+1);
+      if(seg.length<2)continue;
+      L.polyline(seg,{
+        color:gradeColor(gradients[i]),weight:6,opacity:.9,
+        lineCap:'round',lineJoin:'round'
+      }).addTo(routeGroup);
+    }
+    routeGroup.addTo(map);
+    routeLine=routeGroup;
+    routeMarkers.push(routeGroup);
+    map.fitBounds(L.latLngBounds(latlngs),{padding:[80,80]});
+
     document.getElementById('route-info').innerHTML=
       `<span>A</span> ${a[2]} → <span>B</span> ${b[2]} · ${dist}km · ${mins}분`;
+    const maxGrade=Math.max(...gradients.map(Math.abs));
     document.getElementById('elev-stats').innerHTML=
       `<span>↗ <b>${Math.round(totalUp)}m</b></span>` +
       `<span>↘ <b>${Math.round(totalDown)}m</b></span>` +
       `<span>⬆ <b>${Math.round(maxElev)}m</b></span>` +
-      `<span>⬇ <b>${Math.round(minElev)}m</b></span>`;
+      `<span>최대 <b>${maxGrade.toFixed(1)}%</b></span>`;
 
     // Show panel FIRST so canvas has dimensions
     document.querySelector('.legend').style.display='none';
