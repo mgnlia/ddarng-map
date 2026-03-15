@@ -52,6 +52,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 <div class="controls">
   <button id="btn-topo" class="active" onclick="toggleTopo()">🏔 지형</button>
   <button id="btn-stations" class="active" onclick="toggleStations()">🚲 따릉이</button>
+  <button id="btn-subway" class="active" onclick="toggleSubway()">🚇 지하철</button>
 </div>
 
 <div class="legend">
@@ -66,6 +67,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="stations.js"></script>
+<script src="subway.js"></script>
 <script>
 // STATIONS = [[lat, lng, name, racks, elevation], ...]
 const map = L.map('map', {
@@ -110,7 +112,28 @@ for (const s of STATIONS) {
   ).addTo(stationLayer);
 }
 
-document.getElementById('info-text').textContent = `대여소 ${STATIONS.length}개 · 고도 포함`;
+document.getElementById('info-text').textContent = `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개`;
+
+// Subway layer
+const subwayLayer = L.layerGroup().addTo(map);
+function getLineColor(lines) {
+  if (!lines) return '#aaa';
+  const first = lines.split(',')[0];
+  return LINE_COLORS[first] || '#aaa';
+}
+for (const s of SUBWAY) {
+  const [lat, lng, name, lines] = s;
+  const color = getLineColor(lines);
+  const label = lines ? lines.replace(/0(\d호선)/g,'$1') : '';
+  L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div style="background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;text-align:center;line-height:1.3;box-shadow:0 1px 4px rgba(0,0,0,.5)">${name}</div>`,
+      iconSize: null,
+      iconAnchor: [20, 10]
+    })
+  }).bindPopup(`<b>🚇 ${name}</b><br>${label || '노선 정보 없음'}`).addTo(subwayLayer);
+}
 
 // 현재 위치 표시
 if (navigator.geolocation) {
@@ -143,6 +166,11 @@ function toggleStations() {
   const btn = document.getElementById('btn-stations');
   if (map.hasLayer(stationLayer)) { map.removeLayer(stationLayer); btn.classList.remove('active'); }
   else { stationLayer.addTo(map); btn.classList.add('active'); }
+}
+function toggleSubway() {
+  const btn = document.getElementById('btn-subway');
+  if (map.hasLayer(subwayLayer)) { map.removeLayer(subwayLayer); btn.classList.remove('active'); }
+  else { subwayLayer.addTo(map); btn.classList.add('active'); }
 }
 </script>
 </body>
