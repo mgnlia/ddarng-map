@@ -6,218 +6,266 @@
 <title>서울 고도 지도 × 따릉이</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-#map { width: 100vw; height: 100vh; }
-.legend {
-  position: absolute; bottom: 30px; right: 10px; z-index: 1000;
-  background: rgba(255,255,255,0.92); color: #222; padding: 12px 16px;
-  border-radius: 10px; font-size: 13px; line-height: 1.6;
-  backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.legend h4 { margin-bottom: 6px; font-size: 14px; }
-.legend-row { display: flex; align-items: center; gap: 8px; }
-.legend-color { width: 20px; height: 14px; border-radius: 3px; }
-.info-panel {
-  position: absolute; top: 10px; left: 60px; z-index: 1000;
-  background: rgba(255,255,255,0.92); color: #222; padding: 12px 18px;
-  border-radius: 10px; font-size: 14px;
-  backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.info-panel h3 { margin-bottom: 4px; }
-.controls {
-  position: absolute; top: 10px; right: 10px; z-index: 1000;
-  display: flex; flex-direction: column; gap: 6px;
-}
-.controls button {
-  background: rgba(255,255,255,0.92); color: #333; border: none;
-  padding: 8px 14px; border-radius: 8px; cursor: pointer;
-  font-size: 13px; backdrop-filter: blur(8px);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12); transition: background 0.2s;
-}
-.controls button:hover { background: rgba(230,230,230,0.95); }
-.controls button.active { background: rgba(59,130,246,0.85); color: #fff; }
-.station-popup { font-size: 13px; line-height: 1.5; }
-.station-popup b { color: #2563eb; }
-.bike-dot {
-  width: 24px; height: 24px; border-radius: 50%;
-  color: #fff; font-size: 10px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  line-height: 1;
-}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#map{width:100vw;height:100vh}
+.panel{position:absolute;z-index:1000;background:rgba(255,255,255,.92);
+  padding:10px 14px;border-radius:10px;backdrop-filter:blur(8px);
+  box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:13px}
+.info{top:10px;left:60px}
+.info h3{font-size:15px;margin-bottom:2px}
+.legend{bottom:30px;right:10px;line-height:1.6}
+.legend h4{margin-bottom:4px;font-size:13px}
+.lr{display:flex;align-items:center;gap:6px}
+.lc{width:18px;height:12px;border-radius:3px;flex-shrink:0}
+.controls{position:absolute;top:10px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:5px}
+.controls button{background:rgba(255,255,255,.92);color:#333;border:none;
+  padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;
+  box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.controls button:hover{background:rgba(230,230,230,.95)}
+.controls button.active{background:rgba(59,130,246,.85);color:#fff}
+.station-popup{font-size:13px;line-height:1.5}
+.station-popup b{color:#2563eb}
 </style>
 </head>
 <body>
 <div id="map"></div>
-
-<div class="info-panel">
+<div class="panel info">
   <h3>🚲 서울 고도 × 따릉이</h3>
   <div id="info-text">로딩 중...</div>
 </div>
-
 <div class="controls">
   <button id="btn-topo" onclick="toggleTopo()">🏔 지형</button>
   <button id="btn-stations" class="active" onclick="toggleStations()">🚲 따릉이</button>
   <button id="btn-subway" class="active" onclick="toggleSubway()">🚇 지하철</button>
 </div>
-
-<div class="legend">
-  <h4>고도 (m)</h4>
-  <div class="legend-row"><div class="legend-color" style="background:#1a237e"></div> 0–20m</div>
-  <div class="legend-row"><div class="legend-color" style="background:#1565c0"></div> 20–40m</div>
-  <div class="legend-row"><div class="legend-color" style="background:#43a047"></div> 40–80m</div>
-  <div class="legend-row"><div class="legend-color" style="background:#f9a825"></div> 80–150m</div>
-  <div class="legend-row"><div class="legend-color" style="background:#e65100"></div> 150–300m</div>
-  <div class="legend-row"><div class="legend-color" style="background:#b71c1c"></div> 300m+</div>
+<div class="panel legend">
+  <h4>자전거 잔여</h4>
+  <div class="lr"><div class="lc" style="background:#22c55e"></div> 여유</div>
+  <div class="lr"><div class="lc" style="background:#f97316"></div> 부족 (&lt;30%)</div>
+  <div class="lr"><div class="lc" style="background:#ef4444"></div> 없음 (0)</div>
+  <div class="lr"><div class="lc" style="background:#94a3b8"></div> 로딩 중</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="stations.js"></script>
 <script src="subway.js"></script>
 <script>
-// STATIONS = [[lat, lng, name, racks, elevation], ...]
 const map = L.map('map', {
-  center: [37.5045, 127.0489], // 선정릉역
+  center: [37.5045, 127.0489],
   zoom: 15,
   zoomControl: false,
-  preferCanvas: true  // Canvas renderer for performance
+  preferCanvas: true
 });
-L.control.zoom({ position: 'bottomleft' }).addTo(map);
+L.control.zoom({position:'bottomleft'}).addTo(map);
 
-const baseTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; CartoDB &copy; OSM', maxZoom: 19
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; CartoDB &copy; OSM',maxZoom:19
 }).addTo(map);
 
-const topoTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenTopoMap', maxZoom: 17, opacity: 0.5
+const topoTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+  attribution:'&copy; OpenTopoMap',maxZoom:17,opacity:.5
 });
 
-function elevColor(e) {
-  if (e < 20) return '#1a237e';
-  if (e < 40) return '#1565c0';
-  if (e < 80) return '#43a047';
-  if (e < 150) return '#f9a825';
-  if (e < 300) return '#e65100';
-  return '#b71c1c';
-}
+// === BIKE STATIONS: Custom Canvas Layer ===
+let bikeData = null;
+let showStations = true;
+let showSubway = true;
 
-// Render all stations instantly using canvas renderer
-const stationLayer = L.layerGroup().addTo(map);
+const BikeCanvasLayer = L.Layer.extend({
+  onAdd(map) {
+    this._map = map;
+    this._canvas = L.DomUtil.create('canvas','bike-canvas');
+    this._canvas.style.cssText = 'position:absolute;pointer-events:none;z-index:450';
+    map.getPane('overlayPane').appendChild(this._canvas);
+    map.on('moveend zoomend resize',this._scheduleRedraw,this);
+    this._redraw();
+  },
+  onRemove(map) {
+    map.off('moveend zoomend resize',this._scheduleRedraw,this);
+    this._canvas.remove();
+  },
+  _scheduleRedraw() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = requestAnimationFrame(() => this._redraw());
+  },
+  _redraw() {
+    const map = this._map, size = map.getSize();
+    const canvas = this._canvas;
+    canvas.width = size.x; canvas.height = size.y;
+    const topLeft = map.containerPointToLayerPoint([0,0]);
+    L.DomUtil.setPosition(canvas, topLeft);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,size.x,size.y);
+    if (!showStations) return;
 
-for (const s of STATIONS) {
-  const [lat, lng, name, racks, elev] = s;
-  const marker = L.marker([lat, lng], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div class="bike-dot" style="background:${elevColor(elev)}" data-name="${name}">…</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    })
-  });
-  marker._stName = name;
-  marker._racks = racks;
-  marker._elev = elev;
-  marker._bikes = null;
-  marker.bindPopup(`<div class="station-popup"><b>${name}</b><br>거치대: ${racks}개<br>🏔 고도: ${elev}m<br>🚲 자전거: 로딩 중...</div>`);
-  marker.addTo(stationLayer);
-}
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
+    const r = zoom >= 16 ? 14 : zoom >= 14 ? 11 : zoom >= 12 ? 7 : 5;
+    const showText = zoom >= 14;
+    const pad = 0.005;
+    const south = bounds.getSouth()-pad, north = bounds.getNorth()+pad;
+    const west = bounds.getWest()-pad, east = bounds.getEast()+pad;
 
-document.getElementById('info-text').textContent = `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-// Fetch real-time bike availability
-fetch('/api/bikes').then(r => r.json()).then(bikeData => {
-  stationLayer.eachLayer(m => {
-    if (!m._stName) return;
-    const info = bikeData[m._stName];
-    const bikes = info ? info.bikes : '?';
-    m._bikes = bikes;
-    const pct = info ? (info.bikes / Math.max(info.racks, 1)) : 0;
-    // Update dot color and number
-    const dot = document.querySelector(`.bike-dot[data-name="${CSS.escape(m._stName)}"]`);
-    if (dot) {
-      dot.textContent = bikes;
-      if (info && info.bikes === 0) {
-        dot.style.background = '#ef4444';
-      } else if (info && pct < 0.3) {
-        dot.style.background = '#f97316';
-      } else if (info) {
-        dot.style.background = '#22c55e';
+    for (let i = 0; i < STATIONS.length; i++) {
+      const s = STATIONS[i];
+      const lat = s[0], lng = s[1];
+      if (lat < south || lat > north || lng < west || lng > east) continue;
+
+      const pt = map.latLngToContainerPoint([lat,lng]);
+      const name = s[2];
+      const info = bikeData ? bikeData[name] : null;
+      const bikes = info ? info.bikes : -1;
+
+      let fill;
+      if (bikes < 0) fill = '#94a3b8';
+      else if (bikes === 0) fill = '#ef4444';
+      else if (info && bikes / Math.max(info.racks,1) < 0.3) fill = '#f97316';
+      else fill = '#22c55e';
+
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, r, 0, Math.PI*2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = zoom >= 14 ? 2 : 1;
+      ctx.stroke();
+
+      if (showText && bikes >= 0) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${r > 10 ? 11 : 9}px sans-serif`;
+        ctx.fillText(bikes, pt.x, pt.y);
       }
     }
-    m.setPopupContent(
-      `<div class="station-popup"><b>${m._stName}</b><br>` +
-      `🚲 <b style="font-size:15px;color:${bikes===0?'#ef4444':'#22c55e'}">${bikes}대</b> / 거치대 ${m._racks}개<br>` +
-      `🏔 고도: ${m._elev}m</div>`
-    );
-  });
-  document.getElementById('info-text').innerHTML =
-    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#4ade80">실시간 ✅</span>`;
-}).catch(e => {
-  console.warn('Bike API failed:', e);
-  document.getElementById('info-text').innerHTML =
-    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#f87171">오프라인</span>`;
+  }
 });
 
-// Subway layer
-const subwayLayer = L.layerGroup().addTo(map);
+const bikeLayer = new BikeCanvasLayer();
+bikeLayer.addTo(map);
+
+// Click handler for bike stations (translate click to nearest station)
+map.on('click', e => {
+  if (!showStations) return;
+  const zoom = map.getZoom();
+  const clickPt = map.latLngToContainerPoint(e.latlng);
+  const r = zoom >= 16 ? 14 : zoom >= 14 ? 11 : zoom >= 12 ? 7 : 5;
+  let closest = null, minDist = Infinity;
+
+  for (let i = 0; i < STATIONS.length; i++) {
+    const s = STATIONS[i];
+    const pt = map.latLngToContainerPoint([s[0], s[1]]);
+    const dx = pt.x - clickPt.x, dy = pt.y - clickPt.y;
+    const dist = dx*dx + dy*dy;
+    if (dist < (r+4)*(r+4) && dist < minDist) {
+      minDist = dist;
+      closest = s;
+    }
+  }
+
+  if (closest) {
+    const name = closest[2], racks = closest[3], elev = closest[4];
+    const info = bikeData ? bikeData[name] : null;
+    const bikes = info ? info.bikes : '?';
+    const color = bikes === 0 ? '#ef4444' : '#22c55e';
+    L.popup()
+      .setLatLng([closest[0], closest[1]])
+      .setContent(
+        `<div class="station-popup"><b>${name}</b><br>` +
+        `🚲 <b style="font-size:15px;color:${color}">${bikes}대</b> / 거치대 ${racks}개<br>` +
+        `🏔 고도: ${elev}m</div>`)
+      .openOn(map);
+  }
+});
+
+// === SUBWAY: Only render at zoom >= 13 ===
+const subwayLayer = L.layerGroup();
+let subwayRendered = false;
+
+function renderSubway() {
+  if (subwayRendered) return;
+  subwayRendered = true;
+  for (const s of SUBWAY) {
+    const [lat,lng,name,lines] = s;
+    const color = getLineColor(lines);
+    L.marker([lat,lng],{
+      icon: L.divIcon({
+        className:'',
+        html:`<div style="background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 4px;border-radius:8px;white-space:nowrap;border:1.5px solid #fff;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4)">${name}</div>`,
+        iconSize:null,iconAnchor:[20,10]
+      })
+    }).bindPopup(`<b>🚇 ${name}</b><br>${lines?lines.replace(/0(\d호선)/g,'$1'):''}`).addTo(subwayLayer);
+  }
+}
+
 function getLineColor(lines) {
   if (!lines) return '#aaa';
-  const first = lines.split(',')[0];
-  return LINE_COLORS[first] || '#aaa';
-}
-for (const s of SUBWAY) {
-  const [lat, lng, name, lines] = s;
-  const color = getLineColor(lines);
-  const label = lines ? lines.replace(/0(\d호선)/g,'$1') : '';
-  L.marker([lat, lng], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div style="background:${color};color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;text-align:center;line-height:1.3;box-shadow:0 1px 4px rgba(0,0,0,.5)">${name}</div>`,
-      iconSize: null,
-      iconAnchor: [20, 10]
-    })
-  }).bindPopup(`<b>🚇 ${name}</b><br>${label || '노선 정보 없음'}`).addTo(subwayLayer);
+  return LINE_COLORS[lines.split(',')[0]] || '#aaa';
 }
 
-// 현재 위치 표시
+function updateSubwayVisibility() {
+  const zoom = map.getZoom();
+  if (showSubway && zoom >= 13) {
+    renderSubway();
+    if (!map.hasLayer(subwayLayer)) subwayLayer.addTo(map);
+  } else {
+    if (map.hasLayer(subwayLayer)) map.removeLayer(subwayLayer);
+  }
+}
+map.on('zoomend', updateSubwayVisibility);
+updateSubwayVisibility();
+
+// === Geolocation ===
 if (navigator.geolocation) {
   navigator.geolocation.watchPosition(pos => {
-    const {latitude: lat, longitude: lng, accuracy} = pos.coords;
+    const {latitude:lat,longitude:lng,accuracy} = pos.coords;
     if (!window._locMarker) {
-      window._locMarker = L.circleMarker([lat, lng], {
-        radius: 8, fillColor: '#3b82f6', color: '#fff', weight: 3, fillOpacity: 1
+      window._locMarker = L.circleMarker([lat,lng],{
+        radius:8,fillColor:'#3b82f6',color:'#fff',weight:3,fillOpacity:1
       }).addTo(map).bindPopup('📍 현재 위치');
-      window._locRadius = L.circle([lat, lng], {
-        radius: accuracy, color: '#3b82f6', fillColor: '#3b82f6',
-        fillOpacity: 0.1, weight: 1, opacity: 0.3
+      window._locRadius = L.circle([lat,lng],{
+        radius:accuracy,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.1,weight:1,opacity:.3
       }).addTo(map);
-      map.setView([lat, lng], 15);
+      map.setView([lat,lng],15);
     } else {
-      window._locMarker.setLatLng([lat, lng]);
-      window._locRadius.setLatLng([lat, lng]).setRadius(accuracy);
+      window._locMarker.setLatLng([lat,lng]);
+      window._locRadius.setLatLng([lat,lng]).setRadius(accuracy);
     }
-  }, err => console.warn('Geolocation error:', err), {
-    enableHighAccuracy: true, maximumAge: 10000, timeout: 10000
-  });
+  },()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:10000});
 }
 
+// === Controls ===
 function toggleTopo() {
   const btn = document.getElementById('btn-topo');
   if (map.hasLayer(topoTile)) { map.removeLayer(topoTile); btn.classList.remove('active'); }
   else { topoTile.addTo(map); btn.classList.add('active'); }
 }
 function toggleStations() {
-  const btn = document.getElementById('btn-stations');
-  if (map.hasLayer(stationLayer)) { map.removeLayer(stationLayer); btn.classList.remove('active'); }
-  else { stationLayer.addTo(map); btn.classList.add('active'); }
+  showStations = !showStations;
+  document.getElementById('btn-stations').classList.toggle('active', showStations);
+  if (showStations) { bikeLayer.addTo(map); }
+  else { map.removeLayer(bikeLayer); }
 }
 function toggleSubway() {
-  const btn = document.getElementById('btn-subway');
-  if (map.hasLayer(subwayLayer)) { map.removeLayer(subwayLayer); btn.classList.remove('active'); }
-  else { subwayLayer.addTo(map); btn.classList.add('active'); }
+  showSubway = !showSubway;
+  document.getElementById('btn-subway').classList.toggle('active', showSubway);
+  updateSubwayVisibility();
 }
+
+// === Fetch real-time bikes ===
+document.getElementById('info-text').textContent = `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개`;
+
+fetch('/api/bikes').then(r=>r.json()).then(data => {
+  bikeData = data;
+  bikeLayer._redraw();
+  document.getElementById('info-text').innerHTML =
+    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#22c55e">실시간 ✅</span>`;
+}).catch(() => {
+  document.getElementById('info-text').innerHTML =
+    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#f87171">오프라인</span>`;
+});
 </script>
 </body>
 </html>
