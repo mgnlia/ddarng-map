@@ -10,6 +10,7 @@ export default async function handler(req, res) {
     // Return compact: { stationId: bikesAvailable }
     const result = {};
     for (const s of list) {
+      if (s.stationName && s.stationName.includes('새싹')) continue;
       result[s.stationName] = {
         bikes: parseInt(s.parkingBikeTotCnt || '0'),
         racks: parseInt(s.rackTotCnt || '0')
