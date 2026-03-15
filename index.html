@@ -39,6 +39,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 .controls button.active { background: rgba(59,130,246,0.85); color: #fff; }
 .station-popup { font-size: 13px; line-height: 1.5; }
 .station-popup b { color: #2563eb; }
+.bike-dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  line-height: 1;
+}
 </style>
 </head>
 <body>
@@ -100,13 +108,13 @@ const stationLayer = L.layerGroup().addTo(map);
 
 for (const s of STATIONS) {
   const [lat, lng, name, racks, elev] = s;
-  const marker = L.circleMarker([lat, lng], {
-    radius: 5,
-    fillColor: elevColor(elev),
-    color: '#fff',
-    weight: 0.8,
-    opacity: 0.7,
-    fillOpacity: 0.85
+  const marker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="bike-dot" style="background:${elevColor(elev)}" data-name="${name}">…</div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    })
   });
   marker._stName = name;
   marker._racks = racks;
@@ -126,11 +134,17 @@ fetch('/api/bikes').then(r => r.json()).then(bikeData => {
     const bikes = info ? info.bikes : '?';
     m._bikes = bikes;
     const pct = info ? (info.bikes / Math.max(info.racks, 1)) : 0;
-    // Update color based on availability
-    if (info && info.bikes === 0) {
-      m.setStyle({ fillColor: '#ef4444', fillOpacity: 1 }); // red = empty
-    } else if (info && pct < 0.3) {
-      m.setStyle({ fillColor: '#f97316', fillOpacity: 0.9 }); // orange = low
+    // Update dot color and number
+    const dot = document.querySelector(`.bike-dot[data-name="${CSS.escape(m._stName)}"]`);
+    if (dot) {
+      dot.textContent = bikes;
+      if (info && info.bikes === 0) {
+        dot.style.background = '#ef4444';
+      } else if (info && pct < 0.3) {
+        dot.style.background = '#f97316';
+      } else if (info) {
+        dot.style.background = '#22c55e';
+      }
     }
     m.setPopupContent(
       `<div class="station-popup"><b>${m._stName}</b><br>` +
