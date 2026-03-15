@@ -89,11 +89,11 @@ const baseTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}
   maxZoom: 19
 }).addTo(map);
 
-// Elevation tile layer using Stadia/Stamen Terrain
-const elevationTile = L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; Stamen &copy; OSM',
-  maxZoom: 18,
-  opacity: 0.4
+// Elevation tile layer using OpenTopoMap (free, no API key)
+const elevationTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenTopoMap &copy; OSM',
+  maxZoom: 17,
+  opacity: 0.45
 }).addTo(map);
 
 // Station markers layer
