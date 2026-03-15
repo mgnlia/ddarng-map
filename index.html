@@ -469,13 +469,15 @@ async function computeRoute(a,b){
       `<span>⬆ <b>${Math.round(maxElev)}m</b></span>` +
       `<span>⬇ <b>${Math.round(minElev)}m</b></span>`;
 
-    // Draw elevation chart
-    drawElevChart(dists, elevs, totalD);
-
-    // Hide legend/stats, show elev panel
+    // Show panel FIRST so canvas has dimensions
     document.querySelector('.legend').style.display='none';
     document.querySelector('.stats').style.display='none';
     document.getElementById('elev-panel').classList.add('show');
+
+    // Wait for layout, then draw
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      drawElevChart(dists, elevs, totalD);
+    }));
 
   }catch(e){
     document.getElementById('route-info').textContent=`경로 조회 실패: ${e.message}`;
