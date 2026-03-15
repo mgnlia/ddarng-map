@@ -496,6 +496,36 @@ async function computeRoute(a,b){
         lineCap:'round',lineJoin:'round'
       }).addTo(routeGroup);
     }
+
+    // Add downhill arrows every ~5 segments
+    for(let i=0;i<gradients.length;i+=4){
+      const g=gradients[i];
+      if(Math.abs(g)<1)continue; // skip flat sections
+      const midIdx=Math.floor((sampleIdx[i]+sampleIdx[Math.min(i+1,sampleIdx.length-1)])/2);
+      const fromPt=latlngs[sampleIdx[i]], toPt=latlngs[sampleIdx[Math.min(i+1,sampleIdx.length-1)]];
+      const midPt=latlngs[Math.min(midIdx,latlngs.length-1)];
+
+      // Arrow points downhill direction
+      let aFrom,aTo;
+      if(g>0){aFrom=toPt;aTo=fromPt} // uphill: downhill is backwards
+      else{aFrom=fromPt;aTo=toPt}     // downhill: same direction as travel
+
+      const angle=Math.atan2(aTo[0]-aFrom[0],aTo[1]-aFrom[1])*180/Math.PI;
+      const color=gradeColor(g);
+      const size=Math.abs(g)>5?20:16;
+
+      L.marker(midPt,{
+        icon:L.divIcon({
+          className:'',
+          html:`<div style="transform:rotate(${-angle}deg);color:${color};
+            font-size:${size}px;font-weight:900;text-shadow:0 0 3px #fff,0 0 3px #fff;
+            line-height:1;text-align:center">▼</div>`,
+          iconSize:[size,size],iconAnchor:[size/2,size/2]
+        }),
+        interactive:false
+      }).addTo(routeGroup);
+    }
+
     routeGroup.addTo(map);
     routeLine=routeGroup;
     routeMarkers.push(routeGroup);
