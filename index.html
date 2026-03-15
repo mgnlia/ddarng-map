@@ -5,24 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>따릉이 맵 — 서울 실시간 자전거</title>
 <meta name="description" content="서울시 따릉이 실시간 자전거 잔여대수 + 고도 시각화 지도">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚲</text></svg>">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: rgba(15,23,42,.88);
-  --bg-solid: #0f172a;
-  --surface: rgba(30,41,59,.92);
-  --text: #f1f5f9;
-  --text-dim: #94a3b8;
+  --bg: rgba(255,255,255,.92);
+  --bg-solid: #ffffff;
+  --surface: rgba(241,245,249,.95);
+  --text: #0f172a;
+  --text-dim: #64748b;
   --accent: #3b82f6;
-  --green: #22c55e;
-  --orange: #f97316;
-  --red: #ef4444;
+  --green: #16a34a;
+  --orange: #ea580c;
+  --red: #dc2626;
   --radius: 14px;
-  --shadow: 0 4px 24px rgba(0,0,0,.35);
+  --shadow: 0 4px 24px rgba(0,0,0,.1);
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
@@ -36,7 +36,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
   backdrop-filter:blur(16px) saturate(180%);
   -webkit-backdrop-filter:blur(16px) saturate(180%);
   box-shadow:var(--shadow);
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid rgba(0,0,0,.06);
 }
 
 /* Header */
@@ -60,7 +60,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
   padding:8px 14px;border-radius:10px;cursor:pointer;
   font-size:12px;font-weight:600;font-family:inherit;
   transition:all .2s ease;
-  border:1px solid rgba(255,255,255,.04);
+  border:1px solid rgba(0,0,0,.06);
 }
 .ctrl:hover{background:rgba(59,130,246,.2);color:var(--text)}
 .ctrl.on{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -76,7 +76,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
 .lr{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;font-weight:500}
 .lr:last-child{margin-bottom:0}
 .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;
-  border:2px solid rgba(255,255,255,.15)}
+  border:2px solid rgba(0,0,0,.1)}
 
 /* Stats bar */
 .stats{
@@ -92,8 +92,8 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
 /* Popup override */
 .leaflet-popup-content-wrapper{
   background:var(--bg-solid)!important;color:var(--text)!important;
-  border-radius:12px!important;box-shadow:var(--shadow)!important;
-  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:12px!important;box-shadow:0 4px 20px rgba(0,0,0,.12)!important;
+  border:1px solid rgba(0,0,0,.06)!important;
 }
 .leaflet-popup-tip{background:var(--bg-solid)!important}
 .leaflet-popup-content{margin:12px 16px!important;font-family:'Inter',sans-serif!important}
@@ -104,7 +104,7 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
 /* Zoom override */
 .leaflet-control-zoom a{
   background:var(--bg)!important;color:var(--text)!important;
-  border:1px solid rgba(255,255,255,.06)!important;
+  border:1px solid rgba(0,0,0,.08)!important;
   backdrop-filter:blur(12px)!important;
 }
 .leaflet-control-zoom a:hover{background:var(--surface)!important}
@@ -231,7 +231,7 @@ const map = L.map('map',{
 });
 L.control.zoom({position:'bottomleft'}).addTo(map);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
   attribution:'&copy; CartoDB',maxZoom:19
 }).addTo(map);
 
@@ -292,7 +292,7 @@ const BikeCanvas=L.Layer.extend({
 
       ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);
       ctx.fillStyle=fill;ctx.fill();
-      ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=z>=14?1.5:1;ctx.stroke();
+      ctx.strokeStyle='#fff';ctx.lineWidth=z>=14?2:1;ctx.stroke();
 
       if(showN&&bikes>=0){
         ctx.fillStyle='#fff';
@@ -503,10 +503,10 @@ function drawElevChart(dists, elevs, totalDist){
   function y(e){return pad.top+ch-(e-minE)/rangeE*ch}
 
   // Grid
-  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1;
   for(let e=Math.ceil(minE/10)*10;e<=maxE;e+=10){
     ctx.beginPath();ctx.moveTo(pad.left,y(e));ctx.lineTo(W-pad.right,y(e));ctx.stroke();
-    ctx.fillStyle='#64748b';ctx.font='10px Inter,sans-serif';ctx.textAlign='right';
+    ctx.fillStyle='#94a3b8';ctx.font='10px Inter,sans-serif';ctx.textAlign='right';
     ctx.fillText(`${Math.round(e)}m`,pad.left-4,y(e)+3);
   }
 
