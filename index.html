@@ -2,287 +2,364 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>서울 고도 지도 × 따릉이</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>따릉이 맵 — 서울 실시간 자전거</title>
+<meta name="description" content="서울시 따릉이 실시간 자전거 잔여대수 + 고도 시각화 지도">
+<meta name="theme-color" content="#0f172a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚲</text></svg>">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-#map{width:100vw;height:100vh}
-.panel{position:absolute;z-index:1000;background:rgba(255,255,255,.92);
-  padding:10px 14px;border-radius:10px;backdrop-filter:blur(8px);
-  box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:13px}
-.info{top:10px;left:60px}
-.info h3{font-size:15px;margin-bottom:2px}
-.legend{bottom:30px;right:10px;line-height:1.6}
-.legend h4{margin-bottom:4px;font-size:13px}
-.lr{display:flex;align-items:center;gap:6px}
-.lc{width:18px;height:12px;border-radius:3px;flex-shrink:0}
-.controls{position:absolute;top:10px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:5px}
-.controls button{background:rgba(255,255,255,.92);color:#333;border:none;
-  padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12px;
-  box-shadow:0 2px 6px rgba(0,0,0,.12)}
-.controls button:hover{background:rgba(230,230,230,.95)}
-.controls button.active{background:rgba(59,130,246,.85);color:#fff}
-.station-popup{font-size:13px;line-height:1.5}
-.station-popup b{color:#2563eb}
-
-/* Mobile responsive */
-@media(max-width:600px){
-  .info{top:auto;bottom:10px;left:10px;right:10px;text-align:center;
-    padding:8px 10px;font-size:12px}
-  .info h3{font-size:13px;display:inline;margin-right:6px}
-  .info div{display:inline}
-  .controls{top:10px;right:10px;flex-direction:row;gap:4px}
-  .controls button{padding:6px 10px;font-size:11px}
-  .legend{bottom:60px;right:10px;padding:8px 10px;font-size:11px}
-  .legend h4{font-size:12px}
-  .lc{width:14px;height:10px}
-  .leaflet-control-zoom{bottom:70px!important}
+:root {
+  --bg: rgba(15,23,42,.88);
+  --bg-solid: #0f172a;
+  --surface: rgba(30,41,59,.92);
+  --text: #f1f5f9;
+  --text-dim: #94a3b8;
+  --accent: #3b82f6;
+  --green: #22c55e;
+  --orange: #f97316;
+  --red: #ef4444;
+  --radius: 14px;
+  --shadow: 0 4px 24px rgba(0,0,0,.35);
 }
-@media(max-width:380px){
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;overflow:hidden}
+#map{width:100vw;height:100vh}
+
+/* Glass panels */
+.glass{
+  position:absolute;z-index:1000;
+  background:var(--bg);color:var(--text);
+  border-radius:var(--radius);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  box-shadow:var(--shadow);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+/* Header */
+.header{
+  top:16px;left:16px;right:16px;
+  padding:14px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;
+}
+.header-left{display:flex;align-items:center;gap:10px}
+.logo{font-size:24px;line-height:1}
+.header h1{font-size:16px;font-weight:700;letter-spacing:-.02em}
+.header .status{font-size:12px;color:var(--text-dim);font-weight:400}
+.header .status .live{color:var(--green);font-weight:600}
+.header .status .offline{color:var(--red);font-weight:600}
+
+/* Controls */
+.ctrl-group{display:flex;gap:6px}
+.ctrl{
+  background:var(--surface);color:var(--text-dim);border:none;
+  padding:8px 14px;border-radius:10px;cursor:pointer;
+  font-size:12px;font-weight:600;font-family:inherit;
+  transition:all .2s ease;
+  border:1px solid rgba(255,255,255,.04);
+}
+.ctrl:hover{background:rgba(59,130,246,.2);color:var(--text)}
+.ctrl.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Legend */
+.legend{
+  bottom:24px;left:16px;
+  padding:14px 18px;
+  min-width:140px;
+}
+.legend h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-dim);margin-bottom:8px;font-weight:600}
+.lr{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px;font-weight:500}
+.lr:last-child{margin-bottom:0}
+.dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;
+  border:2px solid rgba(255,255,255,.15)}
+
+/* Stats bar */
+.stats{
+  bottom:24px;right:16px;
+  padding:12px 18px;
+  display:flex;gap:20px;
+}
+.stat{text-align:center}
+.stat-val{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.stat-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;
+  letter-spacing:.06em;margin-top:2px;font-weight:500}
+
+/* Popup override */
+.leaflet-popup-content-wrapper{
+  background:var(--bg-solid)!important;color:var(--text)!important;
+  border-radius:12px!important;box-shadow:var(--shadow)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+}
+.leaflet-popup-tip{background:var(--bg-solid)!important}
+.leaflet-popup-content{margin:12px 16px!important;font-family:'Inter',sans-serif!important}
+.pop-name{font-size:14px;font-weight:700;margin-bottom:6px}
+.pop-bikes{font-size:28px;font-weight:700;margin:4px 0}
+.pop-meta{font-size:11px;color:var(--text-dim);display:flex;gap:12px;margin-top:6px}
+
+/* Zoom override */
+.leaflet-control-zoom a{
+  background:var(--bg)!important;color:var(--text)!important;
+  border:1px solid rgba(255,255,255,.06)!important;
+  backdrop-filter:blur(12px)!important;
+}
+.leaflet-control-zoom a:hover{background:var(--surface)!important}
+
+/* Mobile */
+@media(max-width:640px){
+  .header{top:10px;left:10px;right:10px;padding:10px 14px;flex-wrap:wrap;gap:8px}
+  .header h1{font-size:14px}
+  .ctrl{padding:6px 10px;font-size:11px}
+  .legend{bottom:14px;left:10px;padding:10px 14px}
+  .stats{bottom:14px;right:10px;padding:10px 14px;gap:14px}
+  .stat-val{font-size:16px}
+  .stat-label{font-size:9px}
+}
+@media(max-width:420px){
   .legend{display:none}
-  .controls button{padding:5px 8px;font-size:10px}
+  .stats{left:10px;right:10px;justify-content:space-around}
+  .header{flex-direction:column;align-items:flex-start;gap:6px}
+  .ctrl-group{width:100%;justify-content:stretch}
+  .ctrl{flex:1;text-align:center}
 }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="panel info">
-  <h3>🚲 서울 고도 × 따릉이</h3>
-  <div id="info-text">로딩 중...</div>
+
+<div class="glass header">
+  <div class="header-left">
+    <span class="logo">🚲</span>
+    <div>
+      <h1>따릉이 맵</h1>
+      <div class="status" id="status">로딩 중…</div>
+    </div>
+  </div>
+  <div class="ctrl-group">
+    <button class="ctrl" id="btn-topo" onclick="toggleTopo()">🏔 지형</button>
+    <button class="ctrl on" id="btn-bike" onclick="toggleStations()">🚲 따릉이</button>
+    <button class="ctrl on" id="btn-sub" onclick="toggleSubway()">🚇 지하철</button>
+  </div>
 </div>
-<div class="controls">
-  <button id="btn-topo" onclick="toggleTopo()">🏔 지형</button>
-  <button id="btn-stations" class="active" onclick="toggleStations()">🚲 따릉이</button>
-  <button id="btn-subway" class="active" onclick="toggleSubway()">🚇 지하철</button>
+
+<div class="glass legend">
+  <h4>잔여 현황</h4>
+  <div class="lr"><div class="dot" style="background:var(--green)"></div> 여유</div>
+  <div class="lr"><div class="dot" style="background:var(--orange)"></div> 부족</div>
+  <div class="lr"><div class="dot" style="background:var(--red)"></div> 없음</div>
 </div>
-<div class="panel legend">
-  <h4>자전거 잔여</h4>
-  <div class="lr"><div class="lc" style="background:#22c55e"></div> 여유</div>
-  <div class="lr"><div class="lc" style="background:#f97316"></div> 부족 (&lt;30%)</div>
-  <div class="lr"><div class="lc" style="background:#ef4444"></div> 없음 (0)</div>
-  <div class="lr"><div class="lc" style="background:#94a3b8"></div> 로딩 중</div>
+
+<div class="glass stats">
+  <div class="stat">
+    <div class="stat-val" id="st-total">—</div>
+    <div class="stat-label">대여소</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="st-avail" style="color:var(--green)">—</div>
+    <div class="stat-label">이용 가능</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="st-empty" style="color:var(--red)">—</div>
+    <div class="stat-label">빈 대여소</div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="stations.js"></script>
 <script src="subway.js"></script>
 <script>
-const map = L.map('map', {
-  center: [37.5045, 127.0489],
-  zoom: 15,
-  zoomControl: false,
-  preferCanvas: true
+const map = L.map('map',{
+  center:[37.5045,127.0489],zoom:15,
+  zoomControl:false,preferCanvas:true
 });
 L.control.zoom({position:'bottomleft'}).addTo(map);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-  attribution:'&copy; CartoDB &copy; OSM',maxZoom:19
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; CartoDB',maxZoom:19
 }).addTo(map);
 
-const topoTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
-  attribution:'&copy; OpenTopoMap',maxZoom:17,opacity:.5
+const topoTile=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+  maxZoom:17,opacity:.4
 });
 
-// === BIKE STATIONS: Custom Canvas Layer ===
-let bikeData = null;
-let showStations = true;
-let showSubway = true;
+// State
+let bikeData=null, showStations=true, showSubway=true;
 
-const BikeCanvasLayer = L.Layer.extend({
-  onAdd(map) {
-    this._map = map;
-    this._canvas = L.DomUtil.create('canvas','bike-canvas');
-    this._canvas.style.cssText = 'position:absolute;pointer-events:none;z-index:450';
-    map.getPane('overlayPane').appendChild(this._canvas);
-    map.on('moveend zoomend resize',this._scheduleRedraw,this);
-    this._redraw();
+// Colors
+const C={green:'#22c55e',orange:'#f97316',red:'#ef4444',gray:'#475569'};
+
+function bikeColor(bikes,racks){
+  if(bikes<0)return C.gray;
+  if(bikes===0)return C.red;
+  if(bikes/Math.max(racks,1)<.3)return C.orange;
+  return C.green;
+}
+
+// === CANVAS BIKE LAYER ===
+const BikeCanvas=L.Layer.extend({
+  onAdd(m){
+    this._map=m;
+    this._c=L.DomUtil.create('canvas','');
+    this._c.style.cssText='position:absolute;pointer-events:none;z-index:450';
+    m.getPane('overlayPane').appendChild(this._c);
+    m.on('moveend zoomend resize',this._sched,this);
+    this._draw();
   },
-  onRemove(map) {
-    map.off('moveend zoomend resize',this._scheduleRedraw,this);
-    this._canvas.remove();
-  },
-  _scheduleRedraw() {
-    if (this._raf) cancelAnimationFrame(this._raf);
-    this._raf = requestAnimationFrame(() => this._redraw());
-  },
-  _redraw() {
-    const map = this._map, size = map.getSize();
-    const canvas = this._canvas;
-    canvas.width = size.x; canvas.height = size.y;
-    const topLeft = map.containerPointToLayerPoint([0,0]);
-    L.DomUtil.setPosition(canvas, topLeft);
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,size.x,size.y);
-    if (!showStations) return;
+  onRemove(m){m.off('moveend zoomend resize',this._sched,this);this._c.remove()},
+  _sched(){if(this._af)cancelAnimationFrame(this._af);this._af=requestAnimationFrame(()=>this._draw())},
+  _draw(){
+    const m=this._map,sz=m.getSize(),c=this._c;
+    c.width=sz.x;c.height=sz.y;
+    L.DomUtil.setPosition(c,m.containerPointToLayerPoint([0,0]));
+    const ctx=c.getContext('2d');
+    if(!showStations)return;
+    const b=m.getBounds(),z=m.getZoom();
+    const r=z>=17?16:z>=16?14:z>=14?11:z>=12?7:5;
+    const showN=z>=14,pad=.005;
+    const s0=b.getSouth()-pad,n0=b.getNorth()+pad,w0=b.getWest()-pad,e0=b.getEast()+pad;
+    ctx.textAlign='center';ctx.textBaseline='middle';
 
-    const bounds = map.getBounds();
-    const zoom = map.getZoom();
-    const r = zoom >= 16 ? 14 : zoom >= 14 ? 11 : zoom >= 12 ? 7 : 5;
-    const showText = zoom >= 14;
-    const pad = 0.005;
-    const south = bounds.getSouth()-pad, north = bounds.getNorth()+pad;
-    const west = bounds.getWest()-pad, east = bounds.getEast()+pad;
+    for(let i=0;i<STATIONS.length;i++){
+      const s=STATIONS[i];
+      if(s[0]<s0||s[0]>n0||s[1]<w0||s[1]>e0)continue;
+      const pt=m.latLngToContainerPoint([s[0],s[1]]);
+      const info=bikeData?bikeData[s[2]]:null;
+      const bikes=info?info.bikes:-1;
+      const fill=bikeColor(bikes,info?info.racks:0);
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+      // Glow for available stations
+      if(z>=14&&bikes>0){
+        ctx.beginPath();ctx.arc(pt.x,pt.y,r+4,0,Math.PI*2);
+        ctx.fillStyle=fill+'20';ctx.fill();
+      }
 
-    for (let i = 0; i < STATIONS.length; i++) {
-      const s = STATIONS[i];
-      const lat = s[0], lng = s[1];
-      if (lat < south || lat > north || lng < west || lng > east) continue;
+      ctx.beginPath();ctx.arc(pt.x,pt.y,r,0,Math.PI*2);
+      ctx.fillStyle=fill;ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=z>=14?1.5:1;ctx.stroke();
 
-      const pt = map.latLngToContainerPoint([lat,lng]);
-      const name = s[2];
-      const info = bikeData ? bikeData[name] : null;
-      const bikes = info ? info.bikes : -1;
-
-      let fill;
-      if (bikes < 0) fill = '#94a3b8';
-      else if (bikes === 0) fill = '#ef4444';
-      else if (info && bikes / Math.max(info.racks,1) < 0.3) fill = '#f97316';
-      else fill = '#22c55e';
-
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, r, 0, Math.PI*2);
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = zoom >= 14 ? 2 : 1;
-      ctx.stroke();
-
-      if (showText && bikes >= 0) {
-        ctx.fillStyle = '#fff';
-        ctx.font = `bold ${r > 10 ? 11 : 9}px sans-serif`;
-        ctx.fillText(bikes, pt.x, pt.y);
+      if(showN&&bikes>=0){
+        ctx.fillStyle='#fff';
+        ctx.font=`700 ${r>10?12:9}px Inter,sans-serif`;
+        ctx.fillText(bikes,pt.x,pt.y+.5);
       }
     }
   }
 });
 
-const bikeLayer = new BikeCanvasLayer();
+const bikeLayer=new BikeCanvas();
 bikeLayer.addTo(map);
 
-// Click handler for bike stations (translate click to nearest station)
-map.on('click', e => {
-  if (!showStations) return;
-  const zoom = map.getZoom();
-  const clickPt = map.latLngToContainerPoint(e.latlng);
-  const r = zoom >= 16 ? 14 : zoom >= 14 ? 11 : zoom >= 12 ? 7 : 5;
-  let closest = null, minDist = Infinity;
-
-  for (let i = 0; i < STATIONS.length; i++) {
-    const s = STATIONS[i];
-    const pt = map.latLngToContainerPoint([s[0], s[1]]);
-    const dx = pt.x - clickPt.x, dy = pt.y - clickPt.y;
-    const dist = dx*dx + dy*dy;
-    if (dist < (r+4)*(r+4) && dist < minDist) {
-      minDist = dist;
-      closest = s;
-    }
+// Click
+map.on('click',e=>{
+  if(!showStations)return;
+  const cp=map.latLngToContainerPoint(e.latlng),z=map.getZoom();
+  const r=z>=17?16:z>=16?14:z>=14?11:z>=12?7:5;
+  let best=null,bd=Infinity;
+  for(let i=0;i<STATIONS.length;i++){
+    const s=STATIONS[i],pt=map.latLngToContainerPoint([s[0],s[1]]);
+    const d=(pt.x-cp.x)**2+(pt.y-cp.y)**2;
+    if(d<(r+6)**2&&d<bd){bd=d;best=s}
   }
-
-  if (closest) {
-    const name = closest[2], racks = closest[3], elev = closest[4];
-    const info = bikeData ? bikeData[name] : null;
-    const bikes = info ? info.bikes : '?';
-    const color = bikes === 0 ? '#ef4444' : '#22c55e';
-    L.popup()
-      .setLatLng([closest[0], closest[1]])
-      .setContent(
-        `<div class="station-popup"><b>${name}</b><br>` +
-        `🚲 <b style="font-size:15px;color:${color}">${bikes}대</b> / 거치대 ${racks}개<br>` +
-        `🏔 고도: ${elev}m</div>`)
-      .openOn(map);
-  }
+  if(!best)return;
+  const info=bikeData?bikeData[best[2]]:null;
+  const bikes=info?info.bikes:'—';
+  const racks=info?info.racks:best[3];
+  const pct=info?Math.round(info.bikes/Math.max(info.racks,1)*100):0;
+  const col=bikeColor(info?info.bikes:-1,racks);
+  L.popup({className:'dark-popup'})
+    .setLatLng([best[0],best[1]])
+    .setContent(`
+      <div class="pop-name">${best[2]}</div>
+      <div class="pop-bikes" style="color:${col}">${bikes}<span style="font-size:14px;color:var(--text-dim,#94a3b8)"> 대</span></div>
+      <div class="pop-meta">
+        <span>거치대 ${racks}개</span>
+        <span>고도 ${best[4]}m</span>
+        ${info?`<span>${pct}%</span>`:''}
+      </div>`)
+    .openOn(map);
 });
 
-// === SUBWAY: Only render at zoom >= 13 ===
-const subwayLayer = L.layerGroup();
-let subwayRendered = false;
-
-function renderSubway() {
-  if (subwayRendered) return;
-  subwayRendered = true;
-  for (const s of SUBWAY) {
-    const [lat,lng,name,lines] = s;
-    const color = getLineColor(lines);
-    L.marker([lat,lng],{
-      icon: L.divIcon({
+// === SUBWAY ===
+const subwayLayer=L.layerGroup();
+let subwayDone=false;
+function getLC(l){if(!l)return'#64748b';return LINE_COLORS[l.split(',')[0]]||'#64748b'}
+function renderSub(){
+  if(subwayDone)return;subwayDone=true;
+  for(const s of SUBWAY){
+    L.marker([s[0],s[1]],{
+      icon:L.divIcon({
         className:'',
-        html:`<div style="background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 4px;border-radius:8px;white-space:nowrap;border:1.5px solid #fff;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4)">${name}</div>`,
+        html:`<div style="background:${getLC(s[3])};color:#fff;font-size:10px;font-weight:700;
+          padding:2px 6px;border-radius:8px;white-space:nowrap;
+          border:1.5px solid rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.4);
+          text-align:center">${s[2]}</div>`,
         iconSize:null,iconAnchor:[20,10]
       })
-    }).bindPopup(`<b>🚇 ${name}</b><br>${lines?lines.replace(/0(\d호선)/g,'$1'):''}`).addTo(subwayLayer);
+    }).bindPopup(`<div class="pop-name">🚇 ${s[2]}</div><div style="font-size:12px;color:#94a3b8">${s[3]?s[3].replace(/0(\d호선)/g,'$1'):''}</div>`)
+    .addTo(subwayLayer);
   }
 }
-
-function getLineColor(lines) {
-  if (!lines) return '#aaa';
-  return LINE_COLORS[lines.split(',')[0]] || '#aaa';
+function updateSub(){
+  const z=map.getZoom();
+  if(showSubway&&z>=13){renderSub();if(!map.hasLayer(subwayLayer))subwayLayer.addTo(map)}
+  else if(map.hasLayer(subwayLayer))map.removeLayer(subwayLayer);
 }
+map.on('zoomend',updateSub);updateSub();
 
-function updateSubwayVisibility() {
-  const zoom = map.getZoom();
-  if (showSubway && zoom >= 13) {
-    renderSubway();
-    if (!map.hasLayer(subwayLayer)) subwayLayer.addTo(map);
-  } else {
-    if (map.hasLayer(subwayLayer)) map.removeLayer(subwayLayer);
-  }
-}
-map.on('zoomend', updateSubwayVisibility);
-updateSubwayVisibility();
-
-// === Geolocation ===
-if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(pos => {
-    const {latitude:lat,longitude:lng,accuracy} = pos.coords;
-    if (!window._locMarker) {
-      window._locMarker = L.circleMarker([lat,lng],{
-        radius:8,fillColor:'#3b82f6',color:'#fff',weight:3,fillOpacity:1
-      }).addTo(map).bindPopup('📍 현재 위치');
-      window._locRadius = L.circle([lat,lng],{
-        radius:accuracy,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.1,weight:1,opacity:.3
-      }).addTo(map);
-      map.setView([lat,lng],15);
-    } else {
-      window._locMarker.setLatLng([lat,lng]);
-      window._locRadius.setLatLng([lat,lng]).setRadius(accuracy);
-    }
+// === GEOLOCATION ===
+if(navigator.geolocation){
+  navigator.geolocation.watchPosition(p=>{
+    const{latitude:la,longitude:lo,accuracy:ac}=p.coords;
+    if(!window._lm){
+      window._lm=L.circleMarker([la,lo],{radius:8,fillColor:'#3b82f6',color:'#fff',weight:3,fillOpacity:1}).addTo(map);
+      window._lr=L.circle([la,lo],{radius:ac,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:.08,weight:1,opacity:.2}).addTo(map);
+      map.setView([la,lo],15);
+    }else{window._lm.setLatLng([la,lo]);window._lr.setLatLng([la,lo]).setRadius(ac)}
   },()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:10000});
 }
 
-// === Controls ===
-function toggleTopo() {
-  const btn = document.getElementById('btn-topo');
-  if (map.hasLayer(topoTile)) { map.removeLayer(topoTile); btn.classList.remove('active'); }
-  else { topoTile.addTo(map); btn.classList.add('active'); }
+// === CONTROLS ===
+function toggleTopo(){
+  const b=document.getElementById('btn-topo');
+  if(map.hasLayer(topoTile)){map.removeLayer(topoTile);b.classList.remove('on')}
+  else{topoTile.addTo(map);b.classList.add('on')}
 }
-function toggleStations() {
-  showStations = !showStations;
-  document.getElementById('btn-stations').classList.toggle('active', showStations);
-  if (showStations) { bikeLayer.addTo(map); }
-  else { map.removeLayer(bikeLayer); }
+function toggleStations(){
+  showStations=!showStations;
+  document.getElementById('btn-bike').classList.toggle('on',showStations);
+  if(showStations)bikeLayer.addTo(map);else map.removeLayer(bikeLayer);
 }
-function toggleSubway() {
-  showSubway = !showSubway;
-  document.getElementById('btn-subway').classList.toggle('active', showSubway);
-  updateSubwayVisibility();
+function toggleSubway(){
+  showSubway=!showSubway;
+  document.getElementById('btn-sub').classList.toggle('on',showSubway);
+  updateSub();
 }
 
-// === Fetch real-time bikes ===
-document.getElementById('info-text').textContent = `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개`;
+// === DATA ===
+document.getElementById('st-total').textContent=STATIONS.length.toLocaleString();
 
-fetch('/api/bikes').then(r=>r.json()).then(data => {
-  bikeData = data;
-  bikeLayer._redraw();
-  document.getElementById('info-text').innerHTML =
-    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#22c55e">실시간 ✅</span>`;
-}).catch(() => {
-  document.getElementById('info-text').innerHTML =
-    `따릉이 ${STATIONS.length}개 · 지하철 ${SUBWAY.length}개 · <span style="color:#f87171">오프라인</span>`;
+fetch('/api/bikes').then(r=>r.json()).then(data=>{
+  bikeData=data;
+  bikeLayer._draw();
+
+  // Stats
+  let avail=0,empty=0;
+  for(const s of STATIONS){
+    const info=data[s[2]];
+    if(info){
+      if(info.bikes>0)avail++;
+      else empty++;
+    }
+  }
+  document.getElementById('st-avail').textContent=avail.toLocaleString();
+  document.getElementById('st-empty').textContent=empty.toLocaleString();
+  document.getElementById('status').innerHTML='<span class="live">● LIVE</span>';
+}).catch(()=>{
+  document.getElementById('status').innerHTML='<span class="offline">● 오프라인</span>';
 });
 </script>
 </body>
